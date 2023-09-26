@@ -6,8 +6,10 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
 import time
 import email.utils as eut
+from urllib.parse import urlparse
 
 try:
     import lxml.etree as ET
@@ -34,6 +36,7 @@ except ModuleNotFoundError:
 
 # Get the ANSI codes working on Windows cmd prompt
 os.system('')
+
 
 class Movie:
     def __init__(self, url, target_height=None, start_segment=None, end_segment=None, ffmpeg_dir=None, overwrite_existing_segmets=False, dont_delete_segments_after_download=False, download_covers=False):
@@ -219,13 +222,13 @@ class Movie:
         else:
             segment_url = f"{self.base_stream_url}/{segment_type}_{stream_id}_{current_segment_number}.mp4d"
         # print(f"downloading segment {segment_type}_{current_segment_number}")
-        progress_percentage = f"{current_segment_number/self.number_of_segments:.1%}" # 1 decimal
+        progress_percentage = f"{current_segment_number/self.number_of_segments:.1%}"  # 1 decimal
         sys.stdout.write(f"\033[Kdownloading segment {segment_type}_{current_segment_number} {progress_percentage}\r")
         segment_file_name = f"{segment_type}_{current_segment_number}.mp4"
         segment_path = os.path.join(self.download_dir_path, segment_file_name)
         if os.path.exists(segment_path) and not self.overwrite_existing_segmets:
             # print(f"found {segment_file_name}")
-            sys.stdout.write(f"found {segment_file_name}\r") # note, this happens fast, might be hard to spot if debugging
+            sys.stdout.write(f"found {segment_file_name}\r")  # note, this happens fast, might be hard to spot if debugging
             return True
         try:
             response = session.get(segment_url)
@@ -303,19 +306,9 @@ class Movie:
             print("Saved cover:", output)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("url", help="URL of the movie")
-    parser.add_argument("--h", type=int, help="Target video resolution height (optional)")
-    parser.add_argument("--f", type=str, help="ffmpeg directory (optional)")
-    parser.add_argument("--start", type=int, help="specify start segment (optional)")
-    parser.add_argument("--end", type=int, help="specify end segment (optional)")
-    parser.add_argument("--o", action="store_true", help="Overwrite existing segments (optional)")
-    parser.add_argument("--s", action="store_true", help="Don't delete segments after download (optional)")
-    parser.add_argument("--c", action="store_true", help="Download covers (optional)")
-    args = parser.parse_args()
+def download_movie(url):
     movie_instance = Movie(
-        url=args.url,
+        url,
         ffmpeg_dir=args.f,
         target_height=args.h,
         start_segment=args.start,
@@ -325,3 +318,42 @@ if __name__ == "__main__":
         download_covers=args.c
     )
     movie_instance.download()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("url", help="URL of the movie or a list.txt file with multiple URLs to download in parallel")
+    parser.add_argument("--h", type=int, help="Target video resolution height (optional)")
+    parser.add_argument("--f", type=str, help="ffmpeg directory (optional)")
+    parser.add_argument("--start", type=int, help="specify start segment (optional)")
+    parser.add_argument("--end", type=int, help="specify end segment (optional)")
+    parser.add_argument("--o", action="store_true", help="Overwrite existing segments (optional)")
+    parser.add_argument("--s", action="store_true", help="Don't delete segments after download (optional)")
+    parser.add_argument("--c", action="store_true", help="Download covers (optional)")
+    args = parser.parse_args()
+
+    try:
+        # validate the url
+        result = urlparse(args.url)
+        if result.scheme and result.netloc:
+            download_movie(args.url)
+        elif args.url == "list.txt":
+            file = open("list.txt")
+            urllist = file.read().splitlines()  # remove the newlines
+            file.close()
+            thread_array = []
+            for i in range(len(urllist)):
+                print(f"Processing {urllist[i]}")
+                t = threading.Thread(target=download_movie, args=(urllist[i],))
+                t.daemon = True
+                t.start()
+                thread_array.append(t)
+                print(t)
+            while threading.active_count() > 1:  # my trick, better than checking with thread.is_alive()
+                time.sleep(1)
+            print('Download threads complete')  # point reached when only 1 thread is left, which corresponds to the main app
+        else:
+            print("Invalid URL or list.txt not passed")
+    except KeyboardInterrupt:
+        print("Interrupting download, exiting")
+        sys.exit()

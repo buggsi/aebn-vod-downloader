@@ -27,7 +27,7 @@ python aebn_dl.py https://*.aebn.com/*/movies/*
 
 You can customize the behavior of the script by passing different arguments when running it. The available arguments are:
 
-- `url`: The URL of the movie to download (required)
+- `url`: The URL of the movie to download or a list.txt with urls to download in parallel (required)
 - `--h`: The desired video resolution height (default: highest available)
 - `--f`: FFmpeg directory (default: try to use PATH)
 - `--start`: Specify start segment (default: 1)
