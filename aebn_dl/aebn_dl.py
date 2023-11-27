@@ -37,7 +37,7 @@ If you have pip (normally installed with python), run this command in a terminal
 
 class Movie:
     def __init__(self, url, target_height=None, start_segment=None, end_segment=None, ffmpeg_dir=None, scene_n=None, output_dir=None, work_dir=None,
-                 scene_padding=None, is_silent=False, proxy=None, proxy_metadata_only = False, download_covers=False, overwrite_existing_files=False, keep_segments_after_download=False,
+                 scene_padding=None, is_silent=False, proxy=None, proxy_metadata_only=False, download_covers=False, overwrite_existing_files=False, keep_segments_after_download=False,
                  resolution_force=False, include_performer_names=False, semgent_validity_check=False):
 
         self.movie_url = url
@@ -140,7 +140,6 @@ class Movie:
 
         else:
             logger.info("Invalid request type. Use 'get' or 'post'.")
-
 
     def _construct_paths(self):
         if not os.path.exists(self.output_dir):
@@ -408,14 +407,14 @@ class Movie:
             response = self._send_request('get', segment_url)
         except:
             return False
-        
+
         if response.status_code == 404 and segment_number == self.total_number_of_data_segments:
             # just skip if the last segment does not exist
             # segment calc returns a rouded up float which is sometimes bigger than the actual number of segments
             logger.debug("Skipping non-existing segment")
             self.end_segment -= 1
             return True
-        
+
         if not response.ok:
             return False
         if return_bytes:
@@ -468,9 +467,9 @@ class Movie:
             self._join_files(stream_files, stream['path'], tqdm_desc=f"{stream['human_name']} segments")
 
 
-def download_movie(args):
+def download_movie(url):
     movie_instance = Movie(
-        url = args.url,
+        url,
         output_dir=args.output_dir,
         work_dir=args.work_dir,
         target_height=args.resolution,
@@ -486,8 +485,8 @@ def download_movie(args):
         keep_segments_after_download=args.keep,
         is_silent=args.silent,
         semgent_validity_check=args.validate,
-        proxy = args.proxy,
-        proxy_metadata_only = args.proxy_metadata
+        proxy=args.proxy,
+        proxy_metadata_only=args.proxy_metadata
     )
     movie_instance.download()
 
@@ -516,7 +515,8 @@ def convert_line_endings(file_path):
             open_file.write(content)
         logger.info('Converted list.txt to unix line endings, important for linux processing')
 
-def main():
+
+if __name__ == "__main__":
     # Make Ctrl-C work when deamon threads are running
     signal.signal(signal.SIGINT, signal.SIG_DFL)
 
@@ -556,7 +556,7 @@ def main():
     # validate the url
     result = urlparse(args.url)
     if result.scheme and result.netloc:
-        download_movie(args)
+        download_movie(args.url)
     # if missing or invalid, check for a list.txt and download concurrently
     elif args.url == "list.txt":
         if sys.platform == 'linux':
@@ -585,7 +585,7 @@ Are you sure you want to continue? (Y/n) ''').casefold()
                 else:
                     print("Please enter y or n")
         default_max_threads = 5
-        max_threads = args.threads or len(urllist) if len(urllist)<default_max_threads else default_max_threads
+        max_threads = args.threads or len(urllist) if len(urllist) < default_max_threads else default_max_threads
         # print("Using max threads", max_threads)
 
         for _ in range(max_threads):
@@ -602,6 +602,3 @@ Are you sure you want to continue? (Y/n) ''').casefold()
             logger.info("Download queue complete")
     else:
         logger.error("Invalid URL or list.txt not passed")
-
-if __name__ == "__main__":
-    main()
